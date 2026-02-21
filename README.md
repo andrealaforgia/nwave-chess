@@ -2,6 +2,8 @@
 
 A self-learning chess engine written in Rust with a Svelte 5 web frontend. The engine uses TD-Leaf(lambda) with hand-crafted evaluation features to improve from every game it plays.
 
+![nwave-chess screenshot](docs/images/screenshot.png)
+
 ## Prerequisites
 
 - **Rust** 1.85+ (install via [rustup](https://rustup.rs/))
