@@ -1,0 +1,202 @@
+project_id: self-learning-chess
+description: >
+  Self-learning chess program with Rust backend and Svelte 5 frontend.
+  Engine uses TD-Leaf(lambda) with hand-crafted features to learn from
+  playing against a human. WebSocket streams live search reasoning.
+
+phases:
+  - id: "01"
+    name: "Foundation"
+    steps:
+      - id: "01-01"
+        name: "Project scaffolding"
+        description: >
+          Create Cargo workspace with backend crate. Set up module structure
+          (engine, learning, server, data). Add core dependencies to Cargo.toml.
+          Create Svelte 5 frontend project with Vite.
+        files_to_create:
+          - Cargo.toml (workspace)
+          - backend/Cargo.toml
+          - backend/src/main.rs
+          - backend/src/lib.rs
+          - backend/src/engine/mod.rs
+          - backend/src/learning/mod.rs
+          - backend/src/server/mod.rs
+          - backend/src/data/mod.rs
+          - frontend/package.json
+          - frontend/vite.config.ts
+          - frontend/svelte.config.js
+          - frontend/tsconfig.json
+          - frontend/src/app.html
+          - frontend/src/App.svelte
+
+      - id: "01-02"
+        name: "Board representation"
+        description: >
+          Wrap cozy-chess with a Board struct exposing: new game, make move,
+          legal moves, FEN import/export, game state detection (check,
+          checkmate, stalemate, draw conditions). Write comprehensive tests.
+        files_to_create:
+          - backend/src/engine/board.rs
+          - backend/src/engine/types.rs
+        depends_on: ["01-01"]
+
+      - id: "01-03"
+        name: "Evaluation function"
+        description: >
+          Implement hand-crafted evaluation with ~470 features: piece values,
+          piece-square tables (middlegame + endgame), game phase interpolation.
+          Bootstrap with Simplified Evaluation Function weights. Include sigmoid
+          transform and gradient computation for TD-Leaf.
+        files_to_create:
+          - backend/src/engine/eval.rs
+        depends_on: ["01-02"]
+
+  - id: "02"
+    name: "Search Engine"
+    steps:
+      - id: "02-01"
+        name: "Alpha-beta search with iterative deepening"
+        description: >
+          Implement negamax alpha-beta with iterative deepening. Track principal
+          variation (PV) at each depth — required for TD-Leaf. Basic move ordering
+          (captures first via MVV-LVA). Return SearchResult with best move, eval,
+          PV line, node count. Include search progress callback for streaming.
+        files_to_create:
+          - backend/src/engine/search.rs
+          - backend/src/engine/movegen.rs
+        depends_on: ["01-03"]
+
+      - id: "02-02"
+        name: "Transposition table and quiescence search"
+        description: >
+          Add transposition table (Zobrist-keyed, configurable size). Add
+          quiescence search (captures-only extension at leaf nodes). Add killer
+          move and history heuristic to move ordering.
+        files_to_create:
+          - backend/src/engine/tt.rs
+        depends_on: ["02-01"]
+
+  - id: "03"
+    name: "Learning System"
+    steps:
+      - id: "03-01"
+        name: "Game data collector"
+        description: >
+          Implement GameCollector that records per-move data during play: PV leaf
+          position, leaf evaluation (sigmoid), gradient vector, whether opponent
+          move was predicted. Stores data for post-game TD-Leaf processing.
+        files_to_create:
+          - backend/src/learning/collector.rs
+        depends_on: ["02-01"]
+
+      - id: "03-02"
+        name: "TD-Leaf update and Adam optimizer"
+        description: >
+          Implement TD-Leaf(lambda=0.7) update computation: temporal differences,
+          KnightCap blunder filter, lambda-weighted cumulative errors, total
+          gradient. Implement Adam optimizer with L2 regularization toward initial
+          weights and per-category weight clipping.
+        files_to_create:
+          - backend/src/learning/td_leaf.rs
+          - backend/src/learning/optimizer.rs
+          - backend/src/learning/weights.rs
+        depends_on: ["03-01"]
+
+      - id: "03-03"
+        name: "SQLite persistence"
+        description: >
+          Implement data layer: schema creation, weight CRUD with versioning,
+          game storage, position data, learning metrics, optimizer state
+          persistence. WAL mode for concurrent access.
+        files_to_create:
+          - backend/src/data/schema.rs
+          - backend/src/data/games.rs
+          - backend/src/data/weights.rs
+          - backend/src/data/metrics.rs
+        depends_on: ["03-02"]
+
+      - id: "03-04"
+        name: "Self-play augmentation"
+        description: >
+          Implement self-play game generation from critical positions (highest
+          TD error positions from human games). Run as background task with
+          configurable game count and reduced learning rate.
+        files_to_create:
+          - backend/src/learning/self_play.rs
+        depends_on: ["03-02", "02-02"]
+
+  - id: "04"
+    name: "WebSocket Server"
+    steps:
+      - id: "04-01"
+        name: "axum WebSocket server and game session"
+        description: >
+          Implement axum server with WebSocket endpoint at /ws. Define message
+          protocol (all 13 message types as serde structs). Implement game
+          session state machine (ColorSelection -> InGame -> GameOver -> Learning).
+          Handle select_color, make_move, resign, new_game messages.
+          Stream engine_thinking updates during search. Serve static files from
+          frontend/dist/ directory.
+        files_to_create:
+          - backend/src/server/ws.rs
+          - backend/src/server/session.rs
+          - backend/src/server/protocol.rs
+        depends_on: ["03-03", "02-02"]
+
+  - id: "05"
+    name: "Frontend"
+    steps:
+      - id: "05-01"
+        name: "Chess board with chessground"
+        description: >
+          Install chessground and chess.js. Create ChessBoard.svelte component
+          wrapping chessground with proper Svelte 5 lifecycle. Create WebSocket
+          client module with auto-reconnect. Create state modules using Svelte 5
+          runes. Create ColorSelectionScreen and basic GameScreen layout.
+          Download Cburnett SVG pieces from Lichess.
+        files_to_create:
+          - frontend/src/lib/ws/client.ts
+          - frontend/src/lib/ws/protocol.ts
+          - frontend/src/lib/state/game.svelte.ts
+          - frontend/src/lib/state/search.svelte.ts
+          - frontend/src/lib/state/connection.svelte.ts
+          - frontend/src/lib/chess/board.ts
+          - frontend/src/components/ChessBoard.svelte
+          - frontend/src/components/ColorSelectionScreen.svelte
+          - frontend/src/components/GameScreen.svelte
+          - frontend/src/components/GameStatusBar.svelte
+          - frontend/src/components/MoveList.svelte
+          - frontend/src/components/GameControls.svelte
+        depends_on: ["04-01"]
+
+      - id: "05-02"
+        name: "Search panel and learning dashboard"
+        description: >
+          Create SearchPanel.svelte showing live engine thinking (depth, eval,
+          PV line, candidates, nodes). Create LearningDashboard.svelte showing
+          post-game metrics (TD errors, weight changes, top changed features).
+          Create ConnectionStatus.svelte. Wire everything into App.svelte.
+        files_to_create:
+          - frontend/src/components/SearchPanel.svelte
+          - frontend/src/components/CandidateMoves.svelte
+          - frontend/src/components/LearningDashboard.svelte
+          - frontend/src/components/WeightChanges.svelte
+          - frontend/src/components/ConnectionStatus.svelte
+          - frontend/src/lib/state/learning.svelte.ts
+        depends_on: ["05-01"]
+
+  - id: "06"
+    name: "Integration"
+    steps:
+      - id: "06-01"
+        name: "End-to-end integration and polish"
+        description: >
+          Wire main.rs to initialize all components: SQLite DB, load/init weights,
+          start axum server. Ensure full game flow works: select color, play moves,
+          engine thinks and streams, game ends, TD-Leaf learns, self-play runs.
+          Add CLI arguments (clap) for configurable parameters. Build frontend
+          and verify static file serving.
+        files_to_modify:
+          - backend/src/main.rs
+        depends_on: ["05-02", "03-04"]
