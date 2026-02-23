@@ -33,7 +33,7 @@ struct Args {
     search_log: bool,
 
     /// Path to frontend static files
-    #[arg(long, default_value = "../frontend/dist")]
+    #[arg(long, default_value = "frontend/dist")]
     frontend_dir: String,
 }
 
